@@ -4,13 +4,29 @@ import { AUTHOR_BY_GITHUB_ID_QUERY } from "@/sanity/lib/queries";
 import { client } from "@/sanity/lib/client";
 import { writeClient } from "@/sanity/lib/write-client";
 
+interface GitHubProfile {
+  id: string,
+  email:string,
+  bio:string,
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  providers: [GitHub],
+  providers: [
+    GitHub({
+      clientId: process.env.GITHUB_ID!,
+      clientSecret: process.env.GITHUB_SECRET!,
+    }),
+  ],
   callbacks: {
-    async signIn({
-      user: { name, email, image },
-      profile: { id, login, bio },
-    }) {
+    async signIn(params: any) {
+      const { user, profile } = params;
+      const { name, email, image } = (user as any) || {};
+      const ghProfile = profile as (GitHubProfile & { login?: string }) | undefined;
+
+      const id = ghProfile?.id;
+      const login = ghProfile && (ghProfile as any).login;
+      const bio = ghProfile?.bio;
+
       const existingUser = await client
         .withConfig({ useCdn: false })
         .fetch(AUTHOR_BY_GITHUB_ID_QUERY, {
@@ -36,7 +52,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const user = await client
           .withConfig({ useCdn: false })
           .fetch(AUTHOR_BY_GITHUB_ID_QUERY, {
-            id: profile?.id,
+            id: (profile as any)?.id,
           });
 
         token.id = user?._id;
